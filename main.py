@@ -24,7 +24,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(6), default=_random_string, primary_key=True)
-    fullname: Mapped[str]
+    fullname: Mapped[str] = mapped_column(unique=True)
     delivery_instructions: Mapped[str]
     gift_recepient_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     gift_recepient: Mapped["User | None"] = relationship(
@@ -247,6 +247,10 @@ def edit_user(
         if user := session.scalars(
             select(User).where(User.id == secretsanta_id)
         ).first():
+            if session.scalars(
+                select(User).where(User.id != user.id, User.fullname == fullname)
+            ).first():
+                return HTMLResponse("This name already exists", status_code=409)
             user.fullname = fullname
             user.delivery_instructions = delivery_instructions
             session.commit()

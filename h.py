@@ -32,7 +32,9 @@ class h:
 
     def __str__(self):
         if not self.tag:
-            return "".join(str(arg) for arg in self.args)
+            return "".join(
+                escape(arg) if isinstance(arg, str) else str(arg) for arg in self.args
+            )
 
         attributes = " ".join(
             [f'{key}="{value}"' for key, value in self.kwargs.items()]
