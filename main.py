@@ -84,9 +84,26 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                                 h3["Delivery instructions"],
                                 pre[user.gift_recepient.delivery_instructions],
                             ]
-                            if user.gift_recepient_id
+                            if user.gift_recepient
                             else []
                         ),
+                        h2["Change details"],
+                        form(action="/edit_user", method="post")[
+                            p[
+                                "Your name: ",
+                                input(name="fullname", value=user.fullname),
+                            ],
+                            p[
+                                "Delivery instructions: ",
+                                textarea(
+                                    name="delivery_instructions",
+                                    required="required",
+                                    rows=4,
+                                    cols=80,
+                                )[user.delivery_instructions],
+                            ],
+                            p[button["Save"]],
+                        ],
                         h2["The participants are:"],
                         ul[
                             *[
@@ -218,3 +235,21 @@ def make_matches(secretsanta_id: Annotated[str, Cookie()]):
             remaining_user_ids.remove(santa)
         session.commit()
         return RedirectResponse("/", status_code=302)
+
+
+@app.post("/edit_user")
+def edit_user(
+    secretsanta_id: Annotated[str, Cookie()],
+    fullname: Annotated[str, Form()],
+    delivery_instructions: Annotated[str, Form()],
+):
+    with Session(engine) as session:
+        if user := session.scalars(
+            select(User).where(User.id == secretsanta_id)
+        ).first():
+            user.fullname = fullname
+            user.delivery_instructions = delivery_instructions
+            session.commit()
+            return RedirectResponse("/", status_code=302)
+        else:
+            return HTMLResponse("User not found", status_code=404)
