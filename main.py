@@ -1,12 +1,40 @@
+import random
+import string
 from typing import Annotated
 
 from fastapi import Cookie, FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import ForeignKey, String, create_engine, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
-from engine import User, engine
-from h import button, code, form, fragment, h1, h2, h3, input, li, p, textarea, ul
+from h import button, code, form, fragment, h1, h2, h3, input, li, p, pre, textarea, ul
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+def _random_string():
+    return "".join(
+        random.choice(string.ascii_letters + string.digits) for _ in range(6)
+    )
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(6), default=_random_string, primary_key=True)
+    fullname: Mapped[str]
+    delivery_instructions: Mapped[str]
+    gift_recepient_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    gift_recepient: Mapped["User | None"] = relationship(
+        back_populates="gift_giver", remote_side=[id]
+    )
+    gift_giver: Mapped["User | None"] = relationship(back_populates="gift_recepient")
+
+
+engine = create_engine("sqlite:///secretsanta.db")
+Base.metadata.create_all(engine)
 
 app = FastAPI()
 
@@ -25,6 +53,13 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
             return HTMLResponse(
                 str(
                     fragment[
+                        (
+                            form(action="/make_matches", method="post")[
+                                button["Create matches"]
+                            ]
+                            if user.fullname == "kbairak"
+                            else ""
+                        ),
                         form(action="/logout", method="post")[button["Log out"]],
                         (
                             form(action="/remove_me", method="post")[
@@ -47,7 +82,7 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                                     f"{user.gift_recepient.fullname}"
                                 ],
                                 h3["Delivery instructions"],
-                                p[user.gift_recepient.delivery_instructions],
+                                pre[user.gift_recepient.delivery_instructions],
                             ]
                             if user.gift_recepient_id
                             else []
@@ -87,8 +122,13 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                                 "Delivery instructions (address, BoxNow box, email, "
                                 "phone number): ",
                                 textarea(
-                                    name="delivery_instructions", required="required"
-                                )[""],
+                                    name="delivery_instructions",
+                                    required="required",
+                                    rows=4,
+                                    cols=80,
+                                )[
+                                    "Adress: \nEmail: \nPhone number: \nBox now locker: "
+                                ],
                             ],
                             p[button["Signup"]],
                         ],
@@ -153,3 +193,28 @@ def remove_me(secretsanta_id: Annotated[str, Cookie()]):
             return response
         else:
             return HTMLResponse("User not found", status_code=404)
+
+
+@app.post("/make_matches")
+def make_matches(secretsanta_id: Annotated[str, Cookie()]):
+    with Session(engine) as session:
+        matchmaking_made = bool(
+            session.scalars(
+                select(User).where(User.gift_recepient_id != None).limit(1)
+            ).first()
+        )
+        if matchmaking_made:
+            return HTMLResponse("Matches have already been made", status_code=403)
+        if not session.scalars(
+            select(User).where(User.id == secretsanta_id, User.fullname == "kbairak")
+        ).first():
+            return HTMLResponse("You are not allowed to make matches", status_code=403)
+
+        users = list(session.scalars(select(User)))
+        remaining_user_ids = set(user.id for user in users)
+        for user in users:
+            santa = random.choice(list(remaining_user_ids - {user.id}))
+            user.gift_recepient_id = santa
+            remaining_user_ids.remove(santa)
+        session.commit()
+        return RedirectResponse("/", status_code=302)
