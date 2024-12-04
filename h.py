@@ -39,16 +39,21 @@ class h:
         attributes = " ".join(
             [f'{key}="{value}"' for key, value in self.kwargs.items()]
         )
+        content = []
+        for arg in self.args:
+            if isinstance(arg, str):
+                content.append(escape(arg))
+            elif not arg:
+                continue
+            else:
+                content.append(str(arg))
         if self.args:
             return "".join(
                 [
                     f"<{self.tag}",
                     f" {attributes}" if attributes else "",
                     f">",
-                    "".join(
-                        escape(arg) if isinstance(arg, str) else str(arg)
-                        for arg in self.args
-                    ),
+                    "".join(content),
                     f"</{self.tag}>",
                 ]
             )

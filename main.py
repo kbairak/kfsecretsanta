@@ -42,9 +42,7 @@ app = FastAPI()
 @app.get("/")
 def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
     with Session(engine) as session:
-        if user := session.scalars(
-            select(User).where(User.id == secretsanta_id)
-        ).first():
+        if me := session.scalars(select(User).where(User.id == secretsanta_id)).first():
             matchmaking_made = bool(
                 session.scalars(
                     select(User).where(User.gift_recepient_id != None).limit(1)
@@ -53,45 +51,36 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
             return HTMLResponse(
                 str(
                     fragment[
-                        (
-                            form(action="/make_matches", method="post")[
-                                button["Create matches"]
-                            ]
-                            if user.fullname == "kbairak"
-                            else ""
-                        ),
+                        me.fullname == "kbairak"
+                        and form(action="/make_matches", method="post")[
+                            button["Create matches"]
+                        ],
                         form(action="/logout", method="post")[button["Log out"]],
-                        (
-                            form(action="/remove_me", method="post")[
-                                button["Remove myself"]
-                            ]
-                            if not matchmaking_made
-                            else ""
-                        ),
-                        h1[f"Welcome {user.fullname}"],
+                        matchmaking_made
+                        and form(action="/remove_me", method="post")[
+                            button["Remove myself"]
+                        ],
+                        h1[f"Welcome {me.fullname}"],
                         p[
                             "Your ID is ",
-                            code[user.id],
+                            code[me.id],
                             ", write it down in case you log out or log in from "
                             "another browser",
                         ],
-                        *(
-                            [
-                                h2[
-                                    "You have to buy a present for "
-                                    f"{user.gift_recepient.fullname}"
-                                ],
-                                h3["Delivery instructions"],
-                                pre[user.gift_recepient.delivery_instructions],
-                            ]
-                            if user.gift_recepient
-                            else []
-                        ),
+                        me.gift_recepient
+                        and fragment[
+                            h2[
+                                "You have to buy a present for "
+                                f"{me.gift_recepient.fullname}"
+                            ],
+                            h3["Delivery instructions"],
+                            pre[me.gift_recepient.delivery_instructions],
+                        ],
                         h2["Change details"],
                         form(action="/edit_user", method="post")[
                             p[
                                 "Your name: ",
-                                input(name="fullname", value=user.fullname),
+                                input(name="fullname", value=me.fullname),
                             ],
                             p[
                                 "Delivery instructions: ",
@@ -100,14 +89,18 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                                     required="required",
                                     rows=4,
                                     cols=80,
-                                )[user.delivery_instructions],
+                                )[me.delivery_instructions],
                             ],
                             p[button["Save"]],
                         ],
                         h2["The participants are:"],
                         ul[
                             *[
-                                li[user.fullname]
+                                li[
+                                    user.fullname,
+                                    me.fullname == "kbairak"
+                                    and fragment[" - ", user.id],
+                                ]
                                 for user in session.scalars(select(User))
                             ]
                         ],
@@ -162,20 +155,20 @@ def signup(
         if session.scalars(select(User).where(User.fullname == fullname)).first():
             return HTMLResponse("This name already exists", status_code=409)
         session.add(
-            user := User(fullname=fullname, delivery_instructions=delivery_instructions)
+            me := User(fullname=fullname, delivery_instructions=delivery_instructions)
         )
         session.commit()
         response = RedirectResponse("/", status_code=302)
-        response.set_cookie("secretsanta_id", user.id)
+        response.set_cookie("secretsanta_id", me.id)
         return response
 
 
 @app.post("/login")
 def login(id: Annotated[str, Form()]):
     with Session(engine) as session:
-        if user := session.scalars(select(User).where(User.id == id)).first():
+        if me := session.scalars(select(User).where(User.id == id)).first():
             response = RedirectResponse("/", status_code=302)
-            response.set_cookie("secretsanta_id", user.id)
+            response.set_cookie("secretsanta_id", me.id)
             return response
         else:
             return HTMLResponse("User not found", status_code=404)
@@ -200,10 +193,8 @@ def remove_me(secretsanta_id: Annotated[str, Cookie()]):
                 "You can't remove yourself after matchmaking has been made",
                 status_code=403,
             )
-        if user := session.scalars(
-            select(User).where(User.id == secretsanta_id)
-        ).first():
-            session.delete(user)
+        if me := session.scalars(select(User).where(User.id == secretsanta_id)).first():
+            session.delete(me)
             session.commit()
             response = RedirectResponse("/", status_code=302)
             response.delete_cookie("secretsanta_id")
@@ -244,15 +235,13 @@ def edit_user(
     delivery_instructions: Annotated[str, Form()],
 ):
     with Session(engine) as session:
-        if user := session.scalars(
-            select(User).where(User.id == secretsanta_id)
-        ).first():
+        if me := session.scalars(select(User).where(User.id == secretsanta_id)).first():
             if session.scalars(
-                select(User).where(User.id != user.id, User.fullname == fullname)
+                select(User).where(User.id != me.id, User.fullname == fullname)
             ).first():
                 return HTMLResponse("This name already exists", status_code=409)
-            user.fullname = fullname
-            user.delivery_instructions = delivery_instructions
+            me.fullname = fullname
+            me.delivery_instructions = delivery_instructions
             session.commit()
             return RedirectResponse("/", status_code=302)
         else:
