@@ -4,10 +4,11 @@ from typing import Annotated
 
 from fastapi import Cookie, FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import ForeignKey, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
-from h import button, code, form, fragment, h1, h2, h3, input, li, p, pre, textarea, ul
+import h
 
 
 class Base(DeclarativeBase):
@@ -37,6 +38,7 @@ engine = create_engine("sqlite:///secretsanta.db")
 Base.metadata.create_all(engine)
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/")
@@ -50,59 +52,67 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
         if me := session.scalars(select(User).where(User.id == secretsanta_id)).first():
             return HTMLResponse(
                 str(
-                    fragment[
-                        me.fullname == "kbairak"
-                        and form(action="/make_matches", method="post")[
-                            button["Create matches"]
+                    h.html[
+                        h.head[
+                            h.title["ΚΦ Secret Santa"],
+                            h.link(rel="stylesheet", href="/static/styles.css"),
                         ],
-                        form(action="/logout", method="post")[button["Log out"]],
-                        matchmaking_made
-                        and form(action="/remove_me", method="post")[
-                            button["Remove myself"]
-                        ],
-                        h1[f"Welcome {me.fullname}"],
-                        p[
-                            "Your ID is ",
-                            code[me.id],
-                            ", write it down in case you log out or log in from "
-                            "another browser",
-                        ],
-                        me.gift_recepient
-                        and fragment[
-                            h2[
-                                "You have to buy a present for "
-                                f"{me.gift_recepient.fullname}"
+                        h.body[
+                            me.fullname == "kbairak"
+                            and h.form(action="/make_matches", method="post")[
+                                h.button["Create matches"]
                             ],
-                            h3["Delivery instructions"],
-                            pre[me.gift_recepient.delivery_instructions],
-                        ],
-                        h2["Change details"],
-                        form(action="/edit_user", method="post")[
-                            p[
-                                "Your name: ",
-                                input(name="fullname", value=me.fullname),
+                            h.form(action="/logout", method="post")[
+                                h.button["Log out"]
                             ],
-                            p[
-                                "Delivery instructions: ",
-                                textarea(
-                                    name="delivery_instructions",
-                                    required="required",
-                                    rows=4,
-                                    cols=80,
-                                )[me.delivery_instructions],
+                            matchmaking_made
+                            and h.form(action="/remove_me", method="post")[
+                                h.button["Remove myself"]
                             ],
-                            p[button["Save"]],
-                        ],
-                        h2["The participants are:"],
-                        ul[
-                            *[
-                                li[
-                                    user.fullname,
-                                    me.fullname == "kbairak"
-                                    and fragment[" - ", user.id],
+                            h.h1[f"Welcome {me.fullname}"],
+                            h.p[
+                                "Your ID is ",
+                                h.code[me.id],
+                                ", write it down in case you log out or log in from "
+                                "another browser",
+                            ],
+                            me.gift_recepient
+                            and h.fragment[
+                                h.h2[
+                                    "You have to buy a present for "
+                                    f"{me.gift_recepient.fullname}"
+                                ],
+                                h.h3["Delivery instructions"],
+                                h.pre[me.gift_recepient.delivery_instructions],
+                            ],
+                            h.h2["Change details"],
+                            h.form(action="/edit_user", method="post")[
+                                h.p[
+                                    "Your name: ",
+                                    h.input(name="fullname", value=me.fullname),
+                                ],
+                                h.p[
+                                    "Delivery instructions: ",
+                                    h.textarea(
+                                        name="delivery_instructions",
+                                        required="required",
+                                        rows=4,
+                                        cols=80,
+                                    )[me.delivery_instructions],
+                                ],
+                                h.p[h.button["Save"]],
+                            ],
+                            h.h2["The participants are:"],
+                            h.ul[
+                                *[
+                                    h.li[
+                                        user.fullname,
+                                        me.fullname == "kbairak"
+                                        and h.fragment[" - ", user.id],
+                                    ]
+                                    for user in session.scalars(select(User))
                                 ]
-                                for user in session.scalars(select(User))
-                            ]
+                            ],
                         ],
                     ]
                 )
@@ -110,46 +120,56 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
         else:
             return HTMLResponse(
                 str(
-                    fragment[
-                        h3[
-                            "Did you sign up from a different browser or logged out? "
-                            "Log in again using your user ID:"
+                    h.html[
+                        h.head[
+                            h.title["ΚΦ Secret Santa"],
+                            h.link(rel="stylesheet", href="/static/styles.css"),
                         ],
-                        form(action="/login", method="post")[
-                            p[
-                                "User ID: ",
-                                input(name="id", required="required"),
-                                button["Log in"],
-                            ]
-                        ],
-                        (
-                            p["Secret santa session is closed, you cannot sign up"]
-                            if matchmaking_made
-                            else fragment[
-                                h2["Sign up"],
-                                form(action="/signup", method="post")[
-                                    p[
-                                        "Your name: ",
-                                        input(name="fullname", required="required"),
-                                    ],
-                                    p[
-                                        "Delivery instructions (address, BoxNow box, "
-                                        "email, phone number): ",
-                                        textarea(
-                                            name="delivery_instructions",
-                                            required="required",
-                                            rows=4,
-                                            cols=80,
-                                        )[
-                                            "Adress: \nEmail: \nPhone number: \nBox now "
-                                            "locker: "
+                        h.body[
+                            h.h3[
+                                "Did you sign up from a different browser or logged "
+                                "out? Log in again using your user ID:"
+                            ],
+                            h.form(action="/login", method="post")[
+                                h.p[
+                                    "User ID: ",
+                                    h.input(name="id", required="required"),
+                                    h.button["Log in"],
+                                ]
+                            ],
+                            (
+                                h.p[
+                                    "Secret santa session is closed, you cannot sign up"
+                                ]
+                                if matchmaking_made
+                                else h.fragment[
+                                    h.h2["Sign up"],
+                                    h.form(action="/signup", method="post")[
+                                        h.p[
+                                            "Your name: ",
+                                            h.input(
+                                                name="fullname", required="required"
+                                            ),
                                         ],
+                                        h.p[
+                                            "Delivery instructions (address, BoxNow "
+                                            "box, email, phone number): ",
+                                            h.textarea(
+                                                name="delivery_instructions",
+                                                required="required",
+                                                rows=4,
+                                                cols=80,
+                                            )[
+                                                "Adress: \nEmail: \nPhone number: \n"
+                                                "Box now locker: "
+                                            ],
+                                        ],
+                                        h.p[h.button["Signup"]],
                                     ],
-                                    p[button["Signup"]],
-                                ],
-                            ]
-                        ),
-                    ]
+                                ]
+                            ),
+                        ],
+                    ],
                 )
             )
 
