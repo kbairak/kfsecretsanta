@@ -31,14 +31,10 @@ class h:
             return self.__class__(self.tag, *(self.args + (key,)), **self.kwargs)
 
     def __str__(self):
-        if not self.tag:
-            return "".join(
-                escape(arg) if isinstance(arg, str) else str(arg) for arg in self.args
-            )
-
         attributes = " ".join(
             [f'{key}="{value}"' for key, value in self.kwargs.items()]
         )
+
         content = []
         for arg in self.args:
             if isinstance(arg, str):
@@ -47,6 +43,10 @@ class h:
                 continue
             else:
                 content.append(str(arg))
+
+        if not self.tag:  # Fragment
+            return "".join(content)
+
         if self.args:
             return "".join(
                 [

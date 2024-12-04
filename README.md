@@ -27,10 +27,6 @@ In order to delete the database and start fresh:
 rm secretsanta.db
 ```
 
-When it's time to do the matchmaking:
+When it's time to do the matchmaking, a button will appear only for the admin user (the one whose fullname field is "kbairak"). Pressing the button will assign matches to everyone and disable signups.
 
-```
-cd /path/to/kfsecretsanta
-source .venv/bin/activate
-python make_matches.py
-```
+There is a corner case where an error will be raised during matchmaking. If that happens, press the button again until it succeeds.

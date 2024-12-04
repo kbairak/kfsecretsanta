@@ -42,12 +42,12 @@ app = FastAPI()
 @app.get("/")
 def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
     with Session(engine) as session:
+        matchmaking_made = bool(
+            session.scalars(
+                select(User).where(User.gift_recepient_id != None).limit(1)
+            ).first()
+        )
         if me := session.scalars(select(User).where(User.id == secretsanta_id)).first():
-            matchmaking_made = bool(
-                session.scalars(
-                    select(User).where(User.gift_recepient_id != None).limit(1)
-                ).first()
-            )
             return HTMLResponse(
                 str(
                     fragment[
@@ -122,26 +122,33 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                                 button["Log in"],
                             ]
                         ],
-                        h2["Sign up"],
-                        form(action="/signup", method="post")[
-                            p[
-                                "Your name: ",
-                                input(name="fullname", required="required"),
-                            ],
-                            p[
-                                "Delivery instructions (address, BoxNow box, email, "
-                                "phone number): ",
-                                textarea(
-                                    name="delivery_instructions",
-                                    required="required",
-                                    rows=4,
-                                    cols=80,
-                                )[
-                                    "Adress: \nEmail: \nPhone number: \nBox now locker: "
+                        (
+                            p["Secret santa session is closed, you cannot sign up"]
+                            if matchmaking_made
+                            else fragment[
+                                h2["Sign up"],
+                                form(action="/signup", method="post")[
+                                    p[
+                                        "Your name: ",
+                                        input(name="fullname", required="required"),
+                                    ],
+                                    p[
+                                        "Delivery instructions (address, BoxNow box, "
+                                        "email, phone number): ",
+                                        textarea(
+                                            name="delivery_instructions",
+                                            required="required",
+                                            rows=4,
+                                            cols=80,
+                                        )[
+                                            "Adress: \nEmail: \nPhone number: \nBox now "
+                                            "locker: "
+                                        ],
+                                    ],
+                                    p[button["Signup"]],
                                 ],
-                            ],
-                            p[button["Signup"]],
-                        ],
+                            ]
+                        ),
                     ]
                 )
             )
@@ -152,6 +159,15 @@ def signup(
     fullname: Annotated[str, Form()], delivery_instructions: Annotated[str, Form()]
 ):
     with Session(engine) as session:
+        matchmaking_made = bool(
+            session.scalars(
+                select(User).where(User.gift_recepient_id != None).limit(1)
+            ).first()
+        )
+        if matchmaking_made:
+            return HTMLResponse(
+                "Secret santa session is over, signups are closed", status_code=403
+            )
         if session.scalars(select(User).where(User.fullname == fullname)).first():
             return HTMLResponse("This name already exists", status_code=409)
         session.add(
