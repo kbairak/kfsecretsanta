@@ -65,7 +65,7 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                             h.form(action="/logout", method="post")[
                                 h.button["Log out"]
                             ],
-                            matchmaking_made
+                            not matchmaking_made
                             and h.form(action="/remove_me", method="post")[
                                 h.button["Remove myself"]
                             ],
@@ -108,7 +108,22 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                                     h.li[
                                         user.fullname,
                                         me.fullname == "kbairak"
-                                        and h.fragment[" - ", user.id],
+                                        and h.fragment[
+                                            " - ",
+                                            user.id,
+                                            h.form(
+                                                action="/remove",
+                                                method="post",
+                                                style="display: inline",
+                                            )[
+                                                h.input(
+                                                    type="hidden",
+                                                    name="user_id",
+                                                    value=user.id,
+                                                ),
+                                                h.button["Remove"],
+                                            ],
+                                        ],
                                     ]
                                     for user in session.scalars(select(User))
                                 ]
@@ -282,3 +297,26 @@ def edit_user(
             return RedirectResponse("/", status_code=302)
         else:
             return HTMLResponse("User not found", status_code=404)
+
+
+@app.post("/remove")
+def remove(secretsanta_id: Annotated[str, Cookie()], user_id: Annotated[str, Form()]):
+    with Session(engine) as session:
+        matchmaking_made = bool(
+            session.scalars(
+                select(User).where(User.gift_recepient_id != None).limit(1)
+            ).first()
+        )
+        if matchmaking_made:
+            return HTMLResponse("Matches have already been made", status_code=403)
+        if not session.scalars(
+            select(User).where(User.id == secretsanta_id, User.fullname == "kbairak")
+        ).first():
+            return HTMLResponse("You are not allowed to remove users", status_code=403)
+        if not (
+            user := session.scalars(select(User).where(User.id == user_id)).first()
+        ):
+            return HTMLResponse("User not found", status_code=404)
+        session.delete(user)
+        session.commit()
+    return RedirectResponse("/", status_code=302)
