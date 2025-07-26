@@ -1,9 +1,11 @@
 import random
+import secrets
 import string
 from typing import Annotated
 
-from fastapi import Cookie, FastAPI, Form
+from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import ForeignKey, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
@@ -39,14 +41,30 @@ Base.metadata.create_all(engine)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
+security = HTTPBasic()
+
+
+def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = secrets.compare_digest(credentials.username, "kf")
+    correct_password = secrets.compare_digest(credentials.password, "hools")
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
 
 
 @app.get("/")
-def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
+def root(
+    secretsanta_id: Annotated[str | None, Cookie()] = None,
+    _: str = Depends(authenticate),
+):
     with Session(engine) as session:
         matchmaking_made = bool(
             session.scalars(
-                select(User).where(User.gift_recepient_id != None).limit(1)
+                select(User).where(User.gift_recepient_id.is_not(None)).limit(1)
             ).first()
         )
         if me := session.scalars(select(User).where(User.id == secretsanta_id)).first():
@@ -54,7 +72,7 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                 str(
                     h.html[
                         h.head[
-                            h.title["ΚΦ Secret Santa"],
+                            h.title["Το λεύκωμα του Σέρβερ"],
                             h.link(rel="stylesheet", href="/static/styles.css"),
                         ],
                         h.body[
@@ -137,7 +155,7 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                 str(
                     h.html[
                         h.head[
-                            h.title["ΚΦ Secret Santa"],
+                            h.title["Το λεύκωμα του Σέρβερ"],
                             h.link(rel="stylesheet", href="/static/styles.css"),
                         ],
                         h.body[
@@ -153,9 +171,7 @@ def root(secretsanta_id: Annotated[str | None, Cookie()] = None):
                                 ]
                             ],
                             (
-                                h.p[
-                                    "Secret santa session is closed, you cannot sign up"
-                                ]
+                                h.p["Λεύκωμα session is closed, you cannot sign up"]
                                 if matchmaking_made
                                 else h.fragment[
                                     h.h2["Sign up"],
@@ -196,12 +212,12 @@ def signup(
     with Session(engine) as session:
         matchmaking_made = bool(
             session.scalars(
-                select(User).where(User.gift_recepient_id != None).limit(1)
+                select(User).where(User.gift_recepient_id.is_not(None)).limit(1)
             ).first()
         )
         if matchmaking_made:
             return HTMLResponse(
-                "Secret santa session is over, signups are closed", status_code=403
+                "Λεύκωμα session is over, signups are closed", status_code=403
             )
         if session.scalars(select(User).where(User.fullname == fullname)).first():
             return HTMLResponse("This name already exists", status_code=409)
@@ -237,7 +253,7 @@ def remove_me(secretsanta_id: Annotated[str, Cookie()]):
     with Session(engine) as session:
         if bool(
             session.scalars(
-                select(User).where(User.gift_recepient_id != None).limit(1)
+                select(User).where(User.gift_recepient_id.is_not(None)).limit(1)
             ).first()
         ):
             return HTMLResponse(
@@ -259,7 +275,7 @@ def make_matches(secretsanta_id: Annotated[str, Cookie()]):
     with Session(engine) as session:
         matchmaking_made = bool(
             session.scalars(
-                select(User).where(User.gift_recepient_id != None).limit(1)
+                select(User).where(User.gift_recepient_id.is_not(None)).limit(1)
             ).first()
         )
         if matchmaking_made:
@@ -270,11 +286,11 @@ def make_matches(secretsanta_id: Annotated[str, Cookie()]):
             return HTMLResponse("You are not allowed to make matches", status_code=403)
 
         users = list(session.scalars(select(User)))
-        remaining_user_ids = set(user.id for user in users)
-        for user in users:
-            santa = random.choice(list(remaining_user_ids - {user.id}))
-            user.gift_recepient_id = santa
-            remaining_user_ids.remove(santa)
+        random.shuffle(users)
+        for i, left in enumerate(users[:-1]):
+            right = users[i + 1]
+            left.gift_recepient_id = right.id
+        users[-1].gift_recepient_id = users[0].id  # Last user gives gift to first
         session.commit()
         return RedirectResponse("/", status_code=302)
 
@@ -304,7 +320,7 @@ def remove(secretsanta_id: Annotated[str, Cookie()], user_id: Annotated[str, For
     with Session(engine) as session:
         matchmaking_made = bool(
             session.scalars(
-                select(User).where(User.gift_recepient_id != None).limit(1)
+                select(User).where(User.gift_recepient_id.is_not(None)).limit(1)
             ).first()
         )
         if matchmaking_made:

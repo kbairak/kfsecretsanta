@@ -1,19 +1,19 @@
 """Very simple HTML generator. Usage:
 
-    >>> str(p["Hello, world!"])
-    <<< '<p>Hello, world!</p>'
+>>> str(p["Hello, world!"])
+<<< '<p>Hello, world!</p>'
 
-    >>> str(input(type="text", name="username"))
-    <<< '<input type="text" name="username" />'
+>>> str(input(type="text", name="username"))
+<<< '<input type="text" name="username" />'
 
-    >>> str(form(action="/submit", method="post")[button["Submit"]])
-    <<< '<form action="/submit" method="post"><button>Submit</button></form>'
+>>> str(form(action="/submit", method="post")[button["Submit"]])
+<<< '<form action="/submit" method="post"><button>Submit</button></form>'
 
-    If you want to add the 'class' attribute, because 'class' is a reserved word in
-    Python, use `class_` instead:
+If you want to add the 'class' attribute, because 'class' is a reserved word in
+Python, use `class_` instead:
 
-    >>> str(p(class_="red")["Hello, world!"])
-    <<< '<p class="red">Hello, world!</p>'
+>>> str(p(class_="red")["Hello, world!"])
+<<< '<p class="red">Hello, world!</p>'
 """
 
 from xml.sax.saxutils import escape
@@ -62,7 +62,7 @@ class h:
                 [
                     f"<{self.tag}",
                     f" {attributes}" if attributes else "",
-                    f">",
+                    ">",
                     "".join(content),
                     f"</{self.tag}>",
                 ]
@@ -72,7 +72,7 @@ class h:
                 [
                     f"<{self.tag}",
                     f" {attributes}" if attributes else "",
-                    f" />",
+                    " />",
                 ]
             )
 

@@ -1,0 +1,17 @@
+[project]
+name = "kfsecretsanta"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.116.1",
+    "sqlalchemy>=2.0.41",
+]
+
+[dependency-groups]
+dev = [
+    "ptipython>=1.0.1",
+    "pudb>=2025.1",
+    "pynvim>=0.5.2",
+]
