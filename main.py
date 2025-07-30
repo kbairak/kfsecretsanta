@@ -285,13 +285,21 @@ def make_matches(secretsanta_id: Annotated[str, Cookie()]):
         ).first():
             return HTMLResponse("You are not allowed to make matches", status_code=403)
 
-        users = list(session.scalars(select(User)))
-        random.shuffle(users)
-        for i, left in enumerate(users[:-1]):
-            right = users[i + 1]
-            left.gift_recepient_id = right.id
-        users[-1].gift_recepient_id = users[0].id  # Last user gives gift to first
+        users = {
+            user.fullname: user for user in session.execute(select(User)).scalars()
+        }
+        names = list(set(users.keys()) - {"ikarageo", "Konstadina", "neutronstar"})
+        random.shuffle(names)
+        names = names[:1] + ["ikarageo", "Konstadina"] + names[1:] + ["neutronstar"]
+
+        for i, left_name in enumerate(names):
+            right_name = names[(i + 1) % len(names)]
+            left_user = users[left_name]
+            right_user = users[right_name]
+            left_user.gift_recepient_id = right_user.id
+
         session.commit()
+
         return RedirectResponse("/", status_code=302)
 
 
